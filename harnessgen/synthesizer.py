@@ -35,10 +35,7 @@ class Differ:
         parse_trace_sort = sorted(
             list(self.parse_trace.unique_call.items()), key=operator.itemgetter(1))
 
-        dummy_calls = []
-        for k, v in dummy_trace_sort:
-            dummy_calls.append(k)
-
+        dummy_calls = [k for k, v in dummy_trace_sort]
         for k, v in parse_trace_sort:
             if k not in dummy_calls:
                 print("CALLID[{0:05d}]: {1}".format(v, k))
@@ -49,11 +46,11 @@ class Differ:
 
 class SingleSynthesizer(Synthesizer):
     def build_body(self):
+        variables = []  # defined variables: e.g., int a=0
         # we should consider both call_tarce and ret_trace
 
         # 1) we need to handle used argument (raw value and pointer, ret-chain)
         for cid in self.trace.cid_sequence:
-            variables = []  # defined variables: e.g., int a=0
             arguments = []  # used arguments: func(&a)
             calltrace = self.trace.calltrace[cid]
             rettrace = self.trace.rettrace[cid]
@@ -74,10 +71,17 @@ class SingleSynthesizer(Synthesizer):
 
             func_snippet = FUNC.replace("{funcname}", funcname)
 
-            if need_to_define_str == '':
-                func_snippet = func_snippet.replace("{print_cid}", "/* Harness function #%d */" % cid)
-            else:
-                func_snippet = func_snippet.replace("{print_cid}", "/* Harness function #%d */\n    %s" % (cid, ' '.join(need_to_define)))
+            func_snippet = (
+                func_snippet.replace(
+                    "{print_cid}",
+                    "/* Harness function #%d */\n    %s"
+                    % (cid, ' '.join(need_to_define)),
+                )
+                if need_to_define_str
+                else func_snippet.replace(
+                    "{print_cid}", "/* Harness function #%d */" % cid
+                )
+            )
 
             func_snippet = func_snippet.replace("{arguments}", ', '.join(arguments))
 
@@ -86,7 +90,10 @@ class SingleSynthesizer(Synthesizer):
                 func_snippet = func_snippet.replace("{dbg_printf}",
                                                     'dbg_printf("%s\\n");' % (funcname))
             else:
-                func_snippet = func_snippet.replace("{ret_statement}", "%s %s_ret = " % (ret_type, funcname))
+                func_snippet = func_snippet.replace(
+                    "{ret_statement}", f"{ret_type} {funcname}_ret = "
+                )
+
                 func_snippet = func_snippet.replace("{dbg_printf}",
                                                     'dbg_printf("%s, ret = %%d\\n", %s_ret);' % (funcname, funcname))
 

@@ -8,9 +8,7 @@ printable = set(string.printable.encode())
 
 def strings(data: bytes):
     found_str = b""
-    while True:
-        if not data:
-            break
+    while data:
         for char in data:
             if char in printable:
                 found_str += bytes([char])

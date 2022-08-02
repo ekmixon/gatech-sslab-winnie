@@ -26,28 +26,26 @@ def main():
     base = idaapi.get_imagebase()
     tif = idaapi.tinfo_t()
 
-    f = open(os.environ.get("DESTPATH", "functype_"), 'w')
-
-    for ea in Segments():
-        # only code segment
-        if idaapi.segtype(ea) != idaapi.SEG_CODE:
-            continue
-
-        for fva in Functions(get_segm_start(ea), get_segm_end(ea)):
-            func_name = get_func_name(fva)
-            has_type = idaapi.get_tinfo(tif, fva) or idaapi.guess_tinfo(tif, fva)
-
-            if not has_type:
+    with open(os.environ.get("DESTPATH", "functype_"), 'w') as f:
+        for ea in Segments():
+            # only code segment
+            if idaapi.segtype(ea) != idaapi.SEG_CODE:
                 continue
 
-            info = serialize(tif)
-            if info is None:
-                continue
+            for fva in Functions(get_segm_start(ea), get_segm_end(ea)):
+                func_name = get_func_name(fva)
+                has_type = idaapi.get_tinfo(tif, fva) or idaapi.guess_tinfo(tif, fva)
 
-            print(hex(fva-base)[:-1], "|", func_name, "|", tif, "|", len(info['args']))
-            f.write("0x%x|%s|%s\n" % (fva-base, func_name, json.dumps(info)))
+                if not has_type:
+                    continue
 
-    f.close()
+                info = serialize(tif)
+                if info is None:
+                    continue
+
+                print(hex(fva-base)[:-1], "|", func_name, "|", tif, "|", len(info['args']))
+                f.write("0x%x|%s|%s\n" % (fva-base, func_name, json.dumps(info)))
+
     idaapi.qexit(0)
 
 

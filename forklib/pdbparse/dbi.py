@@ -154,7 +154,7 @@ def parse_stream(stream):
     modules = []  # array of arrays of files
     files = []  # array of files (non unique)
     Names = stream.read(end - stream.tell())
-    for i in range(0, fileIndex.cMod):
+    for i in range(fileIndex.cMod):
         these = []
         for j in range(modStart[i], modStart[i] + cRefCnt[i]):
             Name = "Name" / CString(encoding = "utf8").parse(Names[NameRef[j]:])

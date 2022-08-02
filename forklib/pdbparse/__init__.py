@@ -35,10 +35,7 @@ class StreamFile:
         self.fp = fp
         self.pages = pages
         self.page_size = page_size
-        if size == -1:
-            self.end = len(pages) * page_size
-        else:
-            self.end = size
+        self.end = len(pages) * page_size if size == -1 else size
         self.pos = 0
 
     def read(self, size = -1):
@@ -63,8 +60,7 @@ class StreamFile:
         elif whence == 2:
             self.pos = self.end + offset
 
-        if self.pos < 0:
-            self.pos = 0
+        self.pos = max(self.pos, 0)
         if self.pos > self.end:
             self.pos = self.end
 
@@ -114,10 +110,7 @@ class PDBStream:
         self.pages = pages
         self.index = index
         self.page_size = page_size
-        if size == -1:
-            self.size = len(pages) * page_size
-        else:
-            self.size = size
+        self.size = len(pages) * page_size if size == -1 else size
         self.stream_file = StreamFile(self.fp, pages, size = size, page_size = page_size)
 
     def reload(self):
@@ -191,7 +184,7 @@ class PDB7RootStream(PDBStream):
             num_pages = _pages(sizes[i], self.page_size)
 
             if num_pages != 0:
-                pages = unpack("<" + ("%sI" % num_pages), rs[pos:pos + (num_pages * 4)])
+                pages = unpack("<" + f"{num_pages}I", rs[pos:pos + (num_pages * 4)])
                 page_lists.append(pages)
                 pos += num_pages * 4
             else:
@@ -263,9 +256,12 @@ class PDBTypeStream(ParsedPDBStream):
         self.header = tpis.TPIHeader
         self.num_types = self.header.ti_max - self.header.ti_min
         self.types = tpis.types
-        self.structures = dict((s.name, s)
-                               for s in tpis.types.values()
-                               if s.leaf_type == "LF_STRUCTURE" or s.leaf_type == "LF_STRUCTURE_ST")
+        self.structures = {
+            s.name: s
+            for s in tpis.types.values()
+            if s.leaf_type in ["LF_STRUCTURE", "LF_STRUCTURE_ST"]
+        }
+
         del tpis
 
 
@@ -435,10 +431,7 @@ class PDB:
             self.fp.seek(pn * self.page_size)
             s += self.fp.read(self.page_size)
         self.fp.seek(pos)
-        if size == -1:
-            return s
-        else:
-            return s[:size]
+        return s if size == -1 else s[:size]
 
     def add_supported_stream(self, name, index, cls):
         self._stream_map[index] = cls
@@ -552,9 +545,8 @@ def parse(filename, fast_load = False):
     f.seek(0)
     if sig == _PDB7_SIGNATURE:
         return PDB7(f, fast_load)
-    else:
-        sig = f.read(_PDB2_SIGNATURE_LEN)
-        if sig == _PDB2_SIGNATURE:
-            f.seek(0)
-            return PDB2(f, fast_load)
+    sig = f.read(_PDB2_SIGNATURE_LEN)
+    if sig == _PDB2_SIGNATURE:
+        f.seek(0)
+        return PDB2(f, fast_load)
     raise ValueError("Unsupported file type")

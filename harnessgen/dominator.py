@@ -58,12 +58,11 @@ class Dominator(object):
         self.defined_pointer = {}   # {address:variable_name}
         self.body = []
         self.history = {}
-        self.har_addr = {}
-
         """ ALL functions which used in the harness """
-        for addr in list(self.trace.all_callers.keys()):
-            # print hex(addr), self.trace.all_callers[addr]
-            self.har_addr[addr] = self.trace.all_callers[addr]
+        self.har_addr = {
+            addr: self.trace.all_callers[addr]
+            for addr in list(self.trace.all_callers.keys())
+        }
 
         self.dominator()
         # print self.trace.callgraph.edges
@@ -83,7 +82,7 @@ class Dominator(object):
 
             for i in range(unique_code_size - 1, 0, -1):
                 # print(harness_addr, self.trace.node_list[i])
-                if self.trace.node_list[i] == harness_addr_start or self.trace.node_list[i] == 0:
+                if self.trace.node_list[i] in [harness_addr_start, 0]:
                     continue
                 if self.trace.node_list[i] not in all_nodes:
                     continue
@@ -105,10 +104,11 @@ class Dominator(object):
         popular_words = sorted(func_counter, key=func_counter.get, reverse=True)
         most_func_count = func_counter[popular_words[0]]
 
-        report_addr = []
-        for addr in func_counter.keys():
-            if func_counter[addr] == most_func_count:
-                report_addr.append(addr)
+        report_addr = [
+            addr
+            for addr in func_counter.keys()
+            if func_counter[addr] == most_func_count
+        ]
 
         print(" >> Total unique harness functions: %d" % (len(self.trace.all_callers)))
         print(" >> Total number of function address identified: %d" % most_func_count)
@@ -127,9 +127,7 @@ class Dominator(object):
         """
 
         print("\n[*] Dominator analysis")
-        candidate = {}
-        candidate["good"] = []
-        candidate["bad"] = []
+        candidate = {"good": [], "bad": []}
         for addr in report_addr:
             count = self.ret_addr_count_trace(addr)  # how many times called?
 
@@ -138,15 +136,25 @@ class Dominator(object):
             else:
                 candidate["bad"].append(addr)
 
-        final_report = {}
-        for good_addr in candidate["good"]:
-            final_report[good_addr] = self.distance_from_startcid(good_addr)
+        final_report = {
+            good_addr: self.distance_from_startcid(good_addr)
+            for good_addr in candidate["good"]
+        }
 
         final_report = sorted(final_report, key=final_report.get, reverse=False)
 
-        print(" >> Bad candidate (called multiple times): %s" % ', '.join(hex(addr) for addr in candidate["bad"]))
-        print(" >> Good candidate (called only once): %s" % ', '.join(hex(addr) for addr in candidate["good"]))
-        print(" >> Candidate address (sorted by the distance from harness): %s" % ', '.join(hex(addr) for addr in final_report))
+        print(
+            f""" >> Bad candidate (called multiple times): {', '.join((hex(addr) for addr in candidate["bad"]))}"""
+        )
+
+        print(
+            f""" >> Good candidate (called only once): {', '.join((hex(addr) for addr in candidate["good"]))}"""
+        )
+
+        print(
+            f" >> Candidate address (sorted by the distance from harness): {', '.join((hex(addr) for addr in final_report))}"
+        )
+
 
         """ how to find this address?
         [*] Dominator analysis
@@ -167,14 +175,11 @@ class Dominator(object):
         return self.start_cid - current_cid
 
     def ret_addr_count_trace(self, dst_addr):
-        counter = 0
-        for cid in list(self.trace.calltrace.keys()):
-            if dst_addr == self.trace.calltrace[cid].dst_addr:
-                if self.start_cid > cid:
-                    counter += 1
-                else:
-                    counter += 2
-        return counter
+        return sum(
+            1 if self.start_cid > cid else 2
+            for cid in list(self.trace.calltrace.keys())
+            if dst_addr == self.trace.calltrace[cid].dst_addr
+        )
 
     def ret_interesting_locations(self):
         start_cid = None
@@ -198,7 +203,7 @@ class Dominator(object):
                     cid = int(line.split(b"CALLID[")[1].split(b"]")[0])
                     tid = int(line.split(b"TID[")[1].split(b"]")[0])
 
-                    if start_cid == None:
+                    if start_cid is None:
                         start_cid = cid
                         start_tid = tid
 
@@ -333,24 +338,19 @@ class DominatorTrace(Trace):
         if src not in list(self.src_to_dst.keys()):
             self.src_to_dst[src] = []
             self.src_to_dst[src].append(dst)
-        else:
-            if dst not in self.src_to_dst[src]:
-                self.src_to_dst[src].append(dst)
+        elif dst not in self.src_to_dst[src]:
+            self.src_to_dst[src].append(dst)
 
         if dst not in list(self.dst_from_src.keys()):
             self.dst_from_src[dst] = []
             self.dst_from_src[dst].append(src)
-        else:
-            if src not in self.dst_from_src[dst]:
-                self.dst_from_src[dst].append(src)
+        elif src not in self.dst_from_src[dst]:
+            self.dst_from_src[dst].append(src)
 
     def windows_target(self, te: TraceElement):
         dlls = [b"kernelbase.dll", b"kernel32.dll", b"ntdll.dll"]
 
-        if te.dst_module and te.dst_module not in dlls:
-            return False
-
-        return True
+        return not te.dst_module or te.dst_module in dlls
 
     def parse_call(self, chunk: bytes, tid, cid):
         te = super().parse_call(chunk, tid, cid)
@@ -366,9 +366,14 @@ class DominatorTrace(Trace):
         # for making src_to_dst and dst_from_src relationship
         self.insert_relationship(src_addr, dst_addr)
 
-        if cid >= self.start_cid and cid <= self.end_cid:
-            if te.has_symbols and src_addr not in self.all_callers and not self.windows_target(te):
-                self.all_callers[src_addr] = te.src_symbol
+        if (
+            cid >= self.start_cid
+            and cid <= self.end_cid
+            and te.has_symbols
+            and src_addr not in self.all_callers
+            and not self.windows_target(te)
+        ):
+            self.all_callers[src_addr] = te.src_symbol
 
         return te
 

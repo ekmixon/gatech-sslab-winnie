@@ -59,10 +59,7 @@ class Args:
     def argtype(self, index):
         if index < len(self.args):
             arg = self.args[index]
-            if "*" in arg:
-                return "data"
-            else:
-                return "pointer"
+            return "data" if "*" in arg else "pointer"
         raise Exception("Index out of bound")
 
     @property
@@ -113,14 +110,11 @@ class Functype:
 
     def by_addr(self, funcaddr) -> Args:
         fi = self.functypes_by_addr.get(funcaddr)
-        if not fi:
-            return Args(b'', funcaddr, 'int', ['int'] * 9, '__cdecl')
-        else:
-            return fi
+        return fi or Args(b'', funcaddr, 'int', ['int'] * 9, '__cdecl')
 
     def by_addr_near(self, funcaddr) -> Args:
         index = bisect.bisect_right(self.sorted_addr, funcaddr) - 1
-        assert index != -1, "Function not found at %s!" % hex(funcaddr)
+        assert index != -1, f"Function not found at {hex(funcaddr)}!"
         addr = self.sorted_addr[index]
         return self.functypes_by_addr[addr]
 
@@ -175,9 +169,12 @@ class FunctypeManager:
             return res
 
         cache_out = FunctypeManager.dest_filename(path)
-        cache_idb = cache_out + '.idb'
-        command = [IDA_PATH, '-A', '-S' + IDA_SCRIPT]
-        command += ['-o' + cache_idb, path] if not os.path.isfile(cache_idb) else [cache_idb]
+        cache_idb = f'{cache_out}.idb'
+        command = [IDA_PATH, '-A', f'-S{IDA_SCRIPT}']
+        command += (
+            [cache_idb] if os.path.isfile(cache_idb) else [f'-o{cache_idb}', path]
+        )
+
 
         if not os.path.isfile(cache_out):
             print(f"Generating function types for {path.decode()} ...")
@@ -295,11 +292,14 @@ class Trace:
         return out
 
     def find_module(self, address: int) -> typing.Tuple[typing.Union[bytes, None], int, int]:
-        for path, (base, end) in self.modules.items():
-            if base <= address <= end:
-                return path, base, end
-
-        return None, 0, 0
+        return next(
+            (
+                (path, base, end)
+                for path, (base, end) in self.modules.items()
+                if base <= address <= end
+            ),
+            (None, 0, 0),
+        )
 
     def find_function(self, address: int) -> typing.Union[Args, None]:
         mod, mod_base, _ = self.find_module(address)
@@ -307,8 +307,7 @@ class Trace:
             return None
 
         ft = self.functype_manager.get(mod)
-        fi = ft.by_addr(address - mod_base)
-        return fi
+        return ft.by_addr(address - mod_base)
 
     def parse_call(self, chunk: bytes, tid, cid, parse_args=True) -> TraceElement:
         """ example
@@ -343,8 +342,7 @@ class Trace:
         if mod:
             dst_module = mod
 
-        fi = self.find_function(dst_addr)
-        if fi:
+        if fi := self.find_function(dst_addr):
             dst_sym = fi.name
             numargs = fi.argsize
 
@@ -420,16 +418,13 @@ class Trace:
     def get_tid(self, chunk: bytes):
         tracetype = ""
         cid = -1
-        tid = -1
         if b" DC " in chunk or b" IC " in chunk or b" IJ " in chunk or b" FR " in chunk:
             tracetype = "CALL"
             cid = int(chunk.split(b"[")[1].split(b"]")[0])
         elif b"RET" in chunk:
             tracetype = "RET"
             cid = int(chunk.split(b"[")[1].split(b"]")[0])
-        if b" TID[" in chunk:
-            tid = int(chunk.split(b" TID[")[1].split(b"]")[0])
-
+        tid = int(chunk.split(b" TID[")[1].split(b"]")[0]) if b" TID[" in chunk else -1
         assert(tracetype != "")
 
         # no tid information from the chunk
@@ -470,11 +465,11 @@ class Synthesizer:
         self.functype_pn = functype_pn
         self.sample_name = sample_name
 
-        if self.start_func != None:
-            self.start_cid, self.trace_tid = ret_start_point(self.trace_pn, self.start_func.encode())
-        else:
+        if self.start_func is None:
             self.start_cid, self.trace_tid = None, None
 
+        else:
+            self.start_cid, self.trace_tid = ret_start_point(self.trace_pn, self.start_func.encode())
         self.functype_manager = FunctypeManager()
         self.trace = Trace(self.trace_pn, self.dump_pn, self.trace_tid, self.start_cid)
         self.defined_types, self.defined_funcs = self.typedef()
@@ -598,10 +593,7 @@ class Synthesizer:
                             else:
                                 result.append(("dump", cid, x, y))
 
-        if not internal_use:
-            return None
-        else:
-            return result
+        return result if internal_use else None
 
     def ret_pointer_at_dump(self, cid, arg, idx):
         # e.g., *((int*)c3_a0[3]
@@ -609,7 +601,7 @@ class Synthesizer:
         return "*((int*)c%d_a%d[%d])" % (cid, arg, idx)
 
     def ret_addr_of_var(self, orig_val):
-        return "&(%s)" % orig_val
+        return f"&({orig_val})"
 
     def check_searched_result(self, _result, query):
         # query: either "arg" or "dump"
@@ -664,8 +656,6 @@ class Synthesizer:
                                           (_type, cid, x, _type, BINREAD, _type))
                     arguments.append("&c%d_a%d" % (cid, x))
 
-                # 3) Check pre-defined pointer
-                #    If there is, we reuse the pointer
                 else:
                     # print args[x][0][0]
 
@@ -695,16 +685,6 @@ class Synthesizer:
                             arguments.append(ptrname)
                             continue
 
-                        # 3-2) what if the address is used by another arguments?
-                        elif False:
-                            # elif result is not None and result_arg is not None:
-                            # print result
-                            self.defined_pointer[args[x][0]
-                                                 [0]] = "&c%d_a%d" % (cid, x)
-                            need_to_define.append(
-                                "%s c%d_a%d = %s;" % (_type, cid, x, dumped))
-
-                        # 3-3) if not, we define new one
                         else:
                             self.defined_pointer[args[x][0]
                                                  [0]] = "&c%d_a%d" % (cid, x)
@@ -712,7 +692,6 @@ class Synthesizer:
                                 "%s c%d_a%d = %s;" % (_type, cid, x, dumped))
                             pointer_defined_flag = True
 
-                    # if it is pre-defined, we do nothing
                     else:
                         need_to_define.append('')
 
@@ -722,7 +701,7 @@ class Synthesizer:
                 # 4) Check whether referenced value (from pointer) is defined as another pointer
                 #    e.g., arg1|A --> 0x1000, arg1|B --> A -> 0x1000
                 #           ==> B = &A (not just raw value of A)
-                if pointer_defined_flag == True:
+                if pointer_defined_flag:
                     # now, we are selecting the referenced value (this is also address)
                     __result = self.search_pointer(
                         args[x][1][0], cid, internal_use=True)
@@ -773,7 +752,6 @@ class Synthesizer:
                 need_to_define.append("")
                 arguments.append(hex(raw_value) + append_str)
 
-            # raw data
             elif args[x][0][1] == 'D':
                 # TODO: consider data-type when unpack
                 raw_value = args[x][0][0]
@@ -786,7 +764,7 @@ class Synthesizer:
 
     def ret_typedef_func(self, funcname, args_str, convention, ret_type):
         # e.g., typedef int (__stdcall *avformat_get_riff_audio_tags_func_t)();
-        return "typedef %s (%s *%s_func_t)(%s);" % (ret_type, convention, funcname.decode(), args_str)
+        return f"typedef {ret_type} ({convention} *{funcname.decode()}_func_t)({args_str});"
 
     def ret_defined_func(self, funcname):
         return (b"    %s_func_t %s_func;" % (funcname, funcname)).decode()

@@ -9,7 +9,7 @@ class Tracer(object):
     def __init__(self, project):
         self.project = project
         self.dir = os.path.join(TRACE_PN, self.project)
-        self.filelist = glob.glob(self.dir+"/*.log")
+        self.filelist = glob.glob(f"{self.dir}/*.log")
         self.normalfile = self.find_normal_file()  # store normal (no interesting points)
         self.filelist.remove(self.normalfile)
 
@@ -23,7 +23,7 @@ class Tracer(object):
 
     def find_normal_file(self):
         for filename in self.filelist:
-            if "_"+NORMAL_POSTFIX in filename:
+            if f"_{NORMAL_POSTFIX}" in filename:
                 return filename
         raise Exception("No normal file which contains _normal")
 
@@ -74,13 +74,9 @@ def extract_minmax(idx_list):
     min_val = min(idx_list)
     max_val = max(idx_list)
 
-    while True:
-        if max_val - min_val > TRACE_MAX:
-            idx_list.remove(max_val)
-            max_val = max(idx_list)
-        else:
-            break
-
+    while not max_val - min_val <= TRACE_MAX:
+        idx_list.remove(max_val)
+        max_val = max(idx_list)
     return min_val, max_val
 
 
@@ -125,16 +121,15 @@ def sanitize_fcall_line(line, baseaddr):
 def extract_call_addr(chunk, baseaddr):
     lines = chunk.split("\n")
 
-    if lines[0].split(" ")[0].strip() in TRACE_PREFIX:
-        if lines[0].split(" ")[1].strip() == "T2M":
-            return int(lines[1].split("0x")[1].split(" ")[0], 16) - baseaddr, sanitize_fcall_line(lines[1], baseaddr)
-        elif lines[0].split(" ")[1].strip() == "M2T":
-            return int(lines[0].split("0x")[1].split(" ")[0], 16) - baseaddr, sanitize_fcall_line(lines[0], baseaddr)
-
-        #print (chunk)
-        raise Exception("No keyword? T2M or M2T?")
-    else:
+    if lines[0].split(" ")[0].strip() not in TRACE_PREFIX:
         return None, None
+    if lines[0].split(" ")[1].strip() == "T2M":
+        return int(lines[1].split("0x")[1].split(" ")[0], 16) - baseaddr, sanitize_fcall_line(lines[1], baseaddr)
+    elif lines[0].split(" ")[1].strip() == "M2T":
+        return int(lines[0].split("0x")[1].split(" ")[0], 16) - baseaddr, sanitize_fcall_line(lines[0], baseaddr)
+
+    #print (chunk)
+    raise Exception("No keyword? T2M or M2T?")
 
 
 def dump_extracted_trace(min_val, max_val, out_pn, project):
@@ -152,7 +147,7 @@ def dump_extracted_trace(min_val, max_val, out_pn, project):
     for x in range(min_val, max_val+1):
         chunk = fdata[x+1]
         out += chunk + "==\n"
-    out += modulename + "|" + hex(baseaddr)
+    out += f"{modulename}|{hex(baseaddr)}"
 
     with open(out_pn, 'w') as f:
         f.write(out)

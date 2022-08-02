@@ -25,9 +25,8 @@ def undecorate(name):
                 name = orig_name
 
     if len(p) == 1:
-        if p == "_":
+        if p == "@":
+            conv = "CDECL" if stack == -1 else "STDCALL"
+        elif p == "_":
             conv = "FASTCALL"
-        elif p == "@":
-            if stack == -1: conv = "CDECL"
-            else: conv = "STDCALL"
     return (name, stack, conv)

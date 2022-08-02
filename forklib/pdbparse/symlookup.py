@@ -22,7 +22,7 @@ class Lookup(object):
         for pdbname, base in mods:
             pdbbase = ".".join(os.path.basename(pdbname).split('.')[:-1])
             if not os.path.exists(pdbname):
-                print("WARN: %s not found" % pdbname)
+                print(f"WARN: {pdbname} not found")
                 not_found.append((base, pdbbase))
                 continue
 
@@ -66,9 +66,7 @@ class Lookup(object):
             last_sect = max(sects, key = attrgetter('VirtualAddress'))
             limit = base + last_sect.VirtualAddress + last_sect.Misc.VirtualSize
 
-            self.addrs[base, limit] = {}
-            self.addrs[base, limit]['name'] = pdbbase
-            self.addrs[base, limit]['addrs'] = []
+            self.addrs[base, limit] = {'name': pdbbase, 'addrs': []}
             for sym in gsyms.globals:
                 if not hasattr(sym, 'offset'):
                     continue
@@ -102,11 +100,10 @@ class Lookup(object):
                 locs = self.locs[base, limit]
                 names = self.names[base, limit]
                 idx = bisect_right(locs, loc) - 1
-                diff = loc - locs[idx]
-                if diff:
+                if diff := loc - locs[idx]:
                     ret = "%s!%s+%#x" % (mod, names[idx], diff)
                 else:
-                    ret = "%s!%s" % (mod, names[idx])
+                    ret = f"{mod}!{names[idx]}"
                 self._cache[loc] = ret
                 return ret
         return "unknown"

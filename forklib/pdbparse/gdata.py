@@ -43,12 +43,12 @@ def merge_structures(con):
     for sym in con:
         sym_dict = {'length': sym.length, 'leaf_type': sym.symbol.leaf_type}
         if sym.symbol.data:
-            sym_dict.update({
+            sym_dict |= {
                 'symtype': sym.symbol.data.symtype,
                 'offset': sym.symbol.data.offset,
                 'segment': sym.symbol.data.segment,
-                'name': sym.symbol.data.name
-            })
+                'name': sym.symbol.data.name,
+            }
+
         new_cons.append(Container(sym_dict))
-    result = ListContainer(new_cons)
-    return result
+    return ListContainer(new_cons)

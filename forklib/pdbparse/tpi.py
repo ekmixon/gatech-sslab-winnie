@@ -1113,14 +1113,13 @@ def resolve_typerefs(leaf, types, min):
                     newrefs.append(types[r])
             newrefs = ListContainer(newrefs)
             setattr(leaf, attr, newrefs)
+        elif ref < min:
+            setattr(leaf, attr, base_type._decode(ref, {}, None))
         else:
-            if ref < min:
-                setattr(leaf, attr, base_type._decode(ref, {}, None))
-            elif ref >= min:
-                try:
-                    setattr(leaf, attr, types[ref])
-                except KeyError:
-                    pass
+            try:
+                setattr(leaf, attr, types[ref])
+            except KeyError:
+                pass
     return leaf
 
 
@@ -1162,7 +1161,12 @@ def parse_stream(fp, unnamed_hack = True, elim_fwdrefs = True):
     # Postprocessing
     # 1. Index the types
     tpi_stream.types = dict(
-        (i, t) for (i, t) in zip(range(tpi_stream.TPIHeader.ti_min, tpi_stream.TPIHeader.ti_max), tpi_stream.types))
+        zip(
+            range(tpi_stream.TPIHeader.ti_min, tpi_stream.TPIHeader.ti_max),
+            tpi_stream.types,
+        )
+    )
+
     for k in tpi_stream.types:
         tpi_stream.types[k].tpi_idx = k
 
@@ -1185,15 +1189,15 @@ def parse_stream(fp, unnamed_hack = True, elim_fwdrefs = True):
     # 4. Resolve type references
     types = tpi_stream.types
     min = tpi_stream.TPIHeader.ti_min
-    for i in types:
-        if types[i].leaf_type == "LF_FIELDLIST":
+    for i, value in types.items():
+        if value.leaf_type == "LF_FIELDLIST":
             types[i].substructs = ListContainer([resolve_typerefs(t, types, min) for t in types[i].substructs])
         else:
             types[i] = resolve_typerefs(types[i], types, min)
 
     # 5. Standardize v2 leaf names to v7 convention
-    for i in types:
-        rename_2_7(types[i])
+    for i, value_ in types.items():
+        rename_2_7(value_)
         if types[i].leaf_type == "LF_FIELDLIST":
             for s in types[i].substructs:
                 rename_2_7(s)
@@ -1203,19 +1207,25 @@ def parse_stream(fp, unnamed_hack = True, elim_fwdrefs = True):
     # this PDB file (eg _UNICODE_STRING in ntoskrnl.pdb)
     if elim_fwdrefs:
         # Get list of fwdrefs
-        fwdrefs = {}
-        for i in types:
-            if hasattr(types[i], 'prop') and types[i].prop.fwdref:
-                fwdrefs[types[i].name] = i
+        fwdrefs = {
+            types[i].name: i
+            for i, value__ in types.items()
+            if hasattr(value__, 'prop') and types[i].prop.fwdref
+        }
+
         # Map them to the real type
-        fwdref_map = {}
-        for i in types:
-            if (hasattr(types[i], 'name') and hasattr(types[i], 'prop') and not types[i].prop.fwdref):
-                if types[i].name in fwdrefs:
-                    fwdref_map[fwdrefs[types[i].name]] = types[i].tpi_idx
+        fwdref_map = {
+            fwdrefs[types[i].name]: types[i].tpi_idx
+            for i, value___ in types.items()
+            if hasattr(value___, 'name')
+            and hasattr(types[i], 'prop')
+            and not types[i].prop.fwdref
+            and types[i].name in fwdrefs
+        }
+
         # Change any references to the fwdref to point to the real type
-        for i in types:
-            if types[i].leaf_type == "LF_FIELDLIST":
+        for i, value____ in types.items():
+            if value____.leaf_type == "LF_FIELDLIST":
                 types[i].substructs = ListContainer([merge_fwdrefs(t, types, fwdref_map) for t in types[i].substructs])
             else:
                 types[i] = merge_fwdrefs(types[i], types, fwdref_map)
@@ -1224,8 +1234,12 @@ def parse_stream(fp, unnamed_hack = True, elim_fwdrefs = True):
             del types[i]
 
     if unnamed_hack:
-        for i in types:
-            if (hasattr(types[i], 'name') and types[i].name in ["__unnamed", "<unnamed-tag>", "<anonymous-tag>"]):
+        for i, value_____ in types.items():
+            if hasattr(value_____, 'name') and types[i].name in [
+                "__unnamed",
+                "<unnamed-tag>",
+                "<anonymous-tag>",
+            ]:
                 types[i].name = ("__unnamed_%x" % types[i].tpi_idx)
 
     return tpi_stream

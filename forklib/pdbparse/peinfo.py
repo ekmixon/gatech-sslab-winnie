@@ -19,8 +19,8 @@ def get_pe_debug_data(filename):
     if dbgdata is None:
         type = u'IMAGE_DEBUG_TYPE_MISC'
         dbgdata = get_debug_data(pe, DEBUG_TYPE[type])
-        if dbgdata is None:
-            type = None
+    if dbgdata is None:
+        type = None
     return dbgdata, type
 
 
@@ -40,7 +40,7 @@ def get_external_codeview(filename):
     elif dbgdata[:4] == b'NB10':
         (guid, filename) = get_nb10(dbgdata)
     else:
-        raise TypeError(u'Invalid CodeView signature: [%s]' % dbgdata[:4])
+        raise TypeError(f'Invalid CodeView signature: [{dbgdata[:4]}]')
     guid = guid.upper()
     return guid, filename
 
@@ -52,13 +52,11 @@ def get_debug_data(pe, type = DEBUG_TYPE[u'IMAGE_DEBUG_TYPE_CODEVIEW']):
         pe.parse_data_directories(DIRECTORY_ENTRY[u'IMAGE_DIRECTORY_ENTRY_DEBUG'])
     if not hasattr(pe, u'DIRECTORY_ENTRY_DEBUG'):
         raise PENoDebugDirectoryEntriesError()
-    else:
-        for entry in pe.DIRECTORY_ENTRY_DEBUG:
+    for entry in pe.DIRECTORY_ENTRY_DEBUG:
+        if entry.struct.Type == type:
             off = entry.struct.PointerToRawData
-            size = entry.struct.SizeOfData
-            if entry.struct.Type == type:
-                retval = pe.__data__[off:off + size]
-                break
+            retval = pe.__data__[off:off + entry.struct.SizeOfData]
+            break
     return retval
 
 
@@ -120,5 +118,4 @@ def get_pe_guid(filename):
     except IOError as e:
         print(e)
         sys.exit(-1)
-    guidstr = "%x%x" % (pe.FILE_HEADER.TimeDateStamp, pe.OPTIONAL_HEADER.SizeOfImage)
-    return guidstr
+    return "%x%x" % (pe.FILE_HEADER.TimeDateStamp, pe.OPTIONAL_HEADER.SizeOfImage)

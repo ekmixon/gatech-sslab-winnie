@@ -82,21 +82,22 @@ def download_file(guid, fname, path = None, quiet = False):
         sys.stderr.write("Warning: GUID is too short to be valid. Did you append the Age field?" + "\n")
 
     for sym_url in SYM_URLS:
-        url = sym_url + "/%s/%s/" % (fname, guid)
+        url = sym_url + f"/{fname}/{guid}/"
         opener = build_opener()
 
         # Whatever extension the user has supplied it must be replaced with .pd_
-        tries = [fname[:-1] + '_', fname]
+        tries = [f'{fname[:-1]}_', fname]
 
         for t in tries:
-            if not quiet: sys.stderr.write("Trying %s" % (url + t) + "\n")
+            if not quiet:
+                sys.stderr.write(f"Trying {url + t}" + "\n")
             outfile = os.path.join(path, t)
             try:
                 hook = None if quiet else progress
                 PDBOpener().retrieve(url + t, outfile, reporthook = hook)
                 if not quiet:
                     sys.stderr.write("\n")
-                    sys.stderr.write("Saved symbols to %s" % (outfile) + "\n")
+                    sys.stderr.write(f"Saved symbols to {outfile}" + "\n")
                 return outfile
             except HTTPError as e:
                 if not quiet:
@@ -128,7 +129,7 @@ def handle_pe(pe_file):
         # Extract it if it's compressed
         # Note: requires cabextract!
         if saved_file.endswith("_"):
-            os.system("cabextract %s" % saved_file)
+            os.system(f"cabextract {saved_file}")
             saved_file = saved_file.replace('.db_', '.dbg')
 
         from pdbparse.dbgold import DbgFile
@@ -149,7 +150,7 @@ def handle_pe(pe_file):
         return
 
     if saved_file != None and saved_file.endswith("_"):
-        os.system("cabextract %s" % saved_file)
+        os.system(f"cabextract {saved_file}")
     return saved_file
 
 
@@ -159,7 +160,7 @@ def get_pe_from_pe(filename, symname = None):
         symname = os.path.basename(filename)
     saved_file = download_file(guid, symname)
     if saved_file and saved_file.endswith("_"):
-        os.system("cabextract %s" % saved_file)
+        os.system(f"cabextract {saved_file}")
 
 """
 These fields need to be zeroed:

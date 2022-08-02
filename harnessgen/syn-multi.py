@@ -79,20 +79,13 @@ class Identifier:
             rst = ""
 
             # pointer
-            if args1[x][0][1] == 'DP' or args1[x][0][1] == 'CP':
-                if args1[x][1][0] == args2[x][1][0]:
-                    rst = "SAME"
-                else:
-                    rst = "DIFFERENT"
+            if args1[x][0][1] in ['DP', 'CP']:
+                rst = "SAME" if args1[x][1][0] == args2[x][1][0] else "DIFFERENT"
                 out += "\n    //   - Arg[%d]: %s (referenced value is %s) |" % (
                     x, NAMEDIC[args1[x][0][1]], rst)
 
-            # data
             else:
-                if args1[x][0][0] == args2[x][0][0]:
-                    rst = "SAME"
-                else:
-                    rst = "DIFFERENT"
+                rst = "SAME" if args1[x][0][0] == args2[x][0][0] else "DIFFERENT"
                 out += "\n    //   - Arg[%d]: DATA (value is %s) |" % (x, rst)
 
         out = tag + out
@@ -111,7 +104,7 @@ class Identifier:
         for cid in self.cor_trace1.trace.cid_sequence:
 
             if cid in self.cor_trace1.trace.calltrace and \
-                    cid in self.cor_trace2.trace.calltrace:
+                        cid in self.cor_trace2.trace.calltrace:
 
                 calltrace1 = self.cor_trace1.trace.calltrace[cid]
                 calltrace2 = self.cor_trace2.trace.calltrace[cid]
@@ -143,7 +136,7 @@ class Identifier:
         # check all function names for each sequence is same
         for cid in self.cor_trace1.trace.cid_sequence:
             if cid in self.cor_trace1.trace.calltrace and \
-                    cid in self.diff_trace.trace.calltrace:
+                        cid in self.diff_trace.trace.calltrace:
 
                 calltrace1 = self.cor_trace1.trace.calltrace[cid]
                 calltrace2 = self.diff_trace.trace.calltrace[cid]
@@ -156,7 +149,7 @@ class Identifier:
         for cid in self.cor_trace1.trace.cid_sequence:
 
             if cid in self.cor_trace1.trace.calltrace and \
-                    cid in self.diff_trace.trace.calltrace:
+                        cid in self.diff_trace.trace.calltrace:
 
                 calltrace1 = self.cor_trace1.trace.calltrace[cid]
                 calltrace2 = self.diff_trace.trace.calltrace[cid]
@@ -189,9 +182,9 @@ class MultiSynthesizer(Synthesizer):
         prev_src_addr = 0
         prev_dst_addr = 0
 
+        variables = []  # defined variables: e.g., int a=0
         # 1) we need to handle used argument (raw value and pointer, ret-chain)
         for cid in self.trace.cid_sequence:
-            variables = []  # defined variables: e.g., int a=0
             arguments = []  # used arguments: func(&a)
             calltrace = self.trace.calltrace[cid]
             rettrace = self.trace.rettrace[cid]
@@ -230,12 +223,17 @@ class MultiSynthesizer(Synthesizer):
             else:
                 func_snippet = FUNC_WO.replace("{funcname}", funcname)
 
-            if need_to_define_str == '':
-                func_snippet = func_snippet.replace(
-                    "{print_cid}", "// Harness function #%d " % cid)
-            else:
-                func_snippet = func_snippet.replace(
-                    "{print_cid}", "// Harness function #%d \n    %s" % (cid, ' '.join(need_to_define)))
+            func_snippet = (
+                func_snippet.replace(
+                    "{print_cid}",
+                    "// Harness function #%d \n    %s"
+                    % (cid, ' '.join(need_to_define)),
+                )
+                if need_to_define_str
+                else func_snippet.replace(
+                    "{print_cid}", "// Harness function #%d " % cid
+                )
+            )
 
             func_snippet = func_snippet.replace(
                 "{arguments}", ', '.join(arguments))
@@ -260,10 +258,7 @@ class MultiSynthesizer(Synthesizer):
             if pending_count > 0:
                 msg += "\n    // [LOOP] This is %dth execution of %s() " % (
                     pending_count+1, funcname)
-                self.body.append(msg+func_snippet)
-            else:
-                self.body.append(msg+func_snippet)
-
+            self.body.append(msg+func_snippet)
             prev_src_addr = src_addr
             prev_dst_addr = dst_addr
 
@@ -314,11 +309,7 @@ def main():
         syn_diff = MultiSynthesizer(diff_trace, dumpdir_diff,
                                functype_pn, args.start_func, args.sample_name)
 
-        traces = {}
-        traces["cor1"] = syn_cor1
-        traces["cor2"] = syn_cor2
-        traces["diff"] = syn_diff
-
+        traces = {"cor1": syn_cor1, "cor2": syn_cor2, "diff": syn_diff}
         identifier = Identifier(traces)
         report = identifier.report
 

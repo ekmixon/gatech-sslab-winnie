@@ -54,7 +54,7 @@ def evaluate(pfstr):
                 try:
                     b = vars[b]
                 except KeyError:
-                    raise ValueError("Name %s referenced before assignment" % b)
+                    raise ValueError(f"Name {b} referenced before assignment")
 
             assign(a, b)
         elif tok in binary_ops:
@@ -68,12 +68,12 @@ def evaluate(pfstr):
                 try:
                     a = vars[a]
                 except KeyError:
-                    raise ValueError("Name %s referenced before assignment" % a)
+                    raise ValueError(f"Name {a} referenced before assignment")
             if isinstance(b, str) and (b.startswith("$") or b.startswith(".")):
                 try:
                     b = vars[b]
                 except KeyError:
-                    raise ValueError("Name %s referenced before assignment" % b)
+                    raise ValueError(f"Name {b} referenced before assignment")
 
             stack.append(binary_ops[tok](a, b))
         elif tok in unary_ops:
@@ -86,7 +86,7 @@ def evaluate(pfstr):
                 try:
                     a = vars[a]
                 except KeyError:
-                    raise ValueError("Name %s referenced before assignment" % a)
+                    raise ValueError(f"Name {a} referenced before assignment")
 
             stack.append(unary_ops[tok](a))
         elif tok.startswith("$") or tok.startswith("."):
@@ -118,7 +118,7 @@ if __name__ == "__main__":
         try:
             evaluate(test)
             if len(repr(test)) > 50:
-                test = test[:50] + "[...]"
+                test = f"{test[:50]}[...]"
             if not should_succeed:
                 print('Test %-60s FAILED.' % repr(test))
             else:
@@ -129,32 +129,34 @@ if __name__ == "__main__":
             else:
                 print('Test %-60s PASSED.' % repr(test))
 
-    validate_data_1 = {}
-    validate_data_1["$T0"] = 0xbfff0012
-    validate_data_1["$T1"] = 0xbfff0020
-    validate_data_1["$T2"] = 0xbfff0019
-    validate_data_1["$eip"] = 0xbfff0021
-    validate_data_1["$ebp"] = 0xbfff0012
-    validate_data_1["$esp"] = 0xbfff0024
-    validate_data_1["$L"] = 0xbfff000e
-    validate_data_1["$P"] = 0xbfff0028
-    validate_data_1["$ebx"] = 0xbffefff7
-    validate_data_1[".cbSavedRegs"] = 4
-    validate_data_1[".cbParams"] = 4
+    validate_data_1 = {
+        "$T0": 3221159954,
+        "$T1": 3221159968,
+        "$T2": 3221159961,
+        "$eip": 3221159969,
+        "$ebp": 3221159954,
+        "$esp": 3221159972,
+        "$L": 3221159950,
+        "$P": 3221159976,
+        "$ebx": 3221159927,
+        ".cbSavedRegs": 4,
+        ".cbParams": 4,
+    }
 
     for k in validate_data_1:
         assert vars[k] == validate_data_1[k]
 
     vars = {}
 
-    validate_data_0 = {}
-    validate_data_0["$rAdd"] = 8
-    validate_data_0["$rAdd2"] = 4
-    validate_data_0["$rSub"] = 3
-    validate_data_0["$rMul"] = 54
-    validate_data_0["$rDivQ"] = 1
-    validate_data_0["$rDivM"] = 3
-    validate_data_0["$rDeref"] = 10
+    validate_data_0 = {
+        "$rAdd": 8,
+        "$rAdd2": 4,
+        "$rSub": 3,
+        "$rMul": 54,
+        "$rDivQ": 1,
+        "$rDivM": 3,
+        "$rDeref": 10,
+    }
 
     pfstrs = [
         ("$rAdd 2 2 + =", True),  # $rAdd = 2 + 2 = 4
@@ -192,7 +194,7 @@ if __name__ == "__main__":
         try:
             evaluate(test)
             if len(repr(test)) > 50:
-                test = test[:50] + "[...]"
+                test = f"{test[:50]}[...]"
             if not should_succeed:
                 print('Test %-60s FAILED.' % repr(test))
             else:

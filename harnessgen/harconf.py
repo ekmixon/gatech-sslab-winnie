@@ -25,10 +25,7 @@ THRESHOLD = 0x20
 TRACE_MAX = 20
 INPUT = "QQQQ"
 
-NAMEDIC = {}
-NAMEDIC['CP'] = "Code Pointer"
-NAMEDIC['DP'] = "Data Pointer"
-
+NAMEDIC = {'CP': "Code Pointer", 'DP': "Data Pointer"}
 # for synthesizer
 BINREAD = 0x1000
 POINTER_SEARCH_LIMIT = 100
